@@ -22,17 +22,20 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    sleep(1);
-    tfs_mount(argv[1], argv[2]);
-/*
+    assert(tfs_mount(argv[1], argv[2]) == 0);
+
     f = tfs_open(path, TFS_O_CREAT);
     assert(f != -1);
 
+
     r = tfs_write(f, str, strlen(str));
+    
     assert(r == strlen(str));
 
     assert(tfs_close(f) != -1);
 
+    assert(tfs_unmount() == 0);
+/*
     f = tfs_open(path, 0);
     assert(f != -1);
 

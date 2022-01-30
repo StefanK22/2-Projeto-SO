@@ -128,6 +128,7 @@ static int _tfs_open_unsynchronized(char const *name, int flags) {
 int tfs_open(char const *name, int flags) {
 	if (pthread_mutex_lock(&single_global_lock) != 0)
 		return -1;
+
 	int ret = _tfs_open_unsynchronized(name, flags);
 	if (ret != -1)
 		++open_files;
