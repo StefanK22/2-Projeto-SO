@@ -147,8 +147,35 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
 }
 
 ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
-    /* TODO: Implement this */
-    return -1;
+    char op = (char) TFS_OP_CODE_READ;
+    ssize_t ret = write(server, &op, sizeof(op));
+    if (ret != sizeof(op))
+        return -1;
+    
+    ret = write(server, &session, sizeof(session));
+    if (ret != sizeof(session))
+        return -1;
+
+    ret = write(server, &fhandle, sizeof(fhandle));
+    if (ret != sizeof(fhandle))
+        return -1;
+
+    ret = write(server, &len, sizeof(len));
+    if (ret != sizeof(len))
+        return -1;
+
+    int bytes_read;
+    ret = read(client, &bytes_read, sizeof(bytes_read));
+    if (ret != sizeof(bytes_read))
+        return -1;
+    
+    ret = read(client, buffer, len);
+    if (ret != len)
+        return -1;
+
+    return bytes_read;
+    
+    
 }
 
 int tfs_shutdown_after_all_closed() {

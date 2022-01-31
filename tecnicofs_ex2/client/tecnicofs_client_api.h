@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#define BLOCK_SIZE (1024)
 
 /*
  * Establishes a session with a TecnicoFS server.
