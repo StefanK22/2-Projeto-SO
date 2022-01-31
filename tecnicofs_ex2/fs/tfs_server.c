@@ -12,6 +12,7 @@ int tfs_unmount_server();
 int tfs_open_server();
 int tfs_close_server();
 int tfs_write_server();
+int tfs_read_server();
 
 
 int main(int argc, char **argv) {
@@ -169,26 +170,12 @@ int tfs_write_server(){
         return -1;
     
 
-    int return_value = 0;
-    char buffer[128];
-    size_t bytes_read, bytes_written = 0;
-    do {
-		bytes_read = (size_t) read(server, buffer, sizeof(buffer));
-		if (bytes_read < 0)
-			return -1;
+    char buffer[BLOCK_SIZE];
+    size_t bytes_read = (size_t) read(server, buffer, sizeof(buffer));
+	if (bytes_read < 0)
+		return -1;
 
-		int i = (int) tfs_write(fhandle, buffer, bytes_read);
-        if (i == -1){
-            return_value = -1;
-            break;
-        }
-        else 
-            bytes_written += (size_t) i;
-
-	} while (bytes_read == 128 && bytes_written < len);
-
-    if (return_value == 0)
-        return_value = (int) bytes_written;
+    int return_value = tfs_write(fhandle, buffer, bytes_read);
     
     int client = open_clients[session_id];
     ret = write(client, &return_value, sizeof(return_value));
@@ -196,4 +183,37 @@ int tfs_write_server(){
         return -1;
     
     return 0;
+
+}
+int tfs_read_server(){
+    int session_id;
+    ssize_t ret = read(server, &session_id, sizeof(session_id));
+    if (ret != sizeof(session_id))
+        return -1;
+    
+    int fhandle;
+    ret = read(server, &fhandle, sizeof(fhandle));
+    if (ret != sizeof(fhandle))
+        return -1;
+
+    size_t len;
+    ret = read(server, &len, sizeof(len));
+    if (ret != sizeof(len))
+        return -1;
+
+    char buffer[BLOCK_SIZE];
+    int bytes_read = tfs_read(fhandle, buffer, len);
+
+    int client = open_clients[session_id];
+    ret = write(client, &bytes_read, sizeof(bytes_read));
+    if (ret != sizeof(bytes_read))
+        return -1;
+    
+    ret = write(client, buffer, bytes_read);
+    if (ret != bytes_read)
+        return -1;
+
+
+    return 0;
+    
 }
