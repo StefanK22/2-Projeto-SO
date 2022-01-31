@@ -13,6 +13,16 @@ int tfs_open_server();
 int tfs_close_server();
 int tfs_write_server();
 int tfs_read_server();
+int tfs_shutdown_after_all_closed_server();
+
+typedef struct {
+    char op_code;
+    int session_id, flags, fhandle, len;
+    char name[40];
+    char buffer[BLOCK_SIZE];
+} request;
+
+request requests_buffer[10];
 
 
 int main(int argc, char **argv) {
@@ -67,6 +77,10 @@ int receive_requests(){
                 break;
             case (char) TFS_OP_CODE_WRITE: i = tfs_write_server();
                 break;
+            case (char) TFS_OP_CODE_READ: i = tfs_read_server();
+                break;
+            case (char) TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED: i = tfs_shutdown_after_all_closed_server();
+                break;
         }
         
     }
@@ -120,7 +134,12 @@ int tfs_open_server(){
     ret = read(server, &flags, sizeof(flags));
     if (ret != sizeof(flags))
         return -1;
-    
+
+    request request = requests_buffer[session_id];
+    request.op_code = TFS_OP_CODE_OPEN;
+    memcpy(request.name, name, sizeof(name));
+    request.flags = flags;
+
     int fhandle = tfs_open(name, flags);
 
     int client = open_clients[session_id];
@@ -175,7 +194,7 @@ int tfs_write_server(){
 	if (bytes_read < 0)
 		return -1;
 
-    int return_value = tfs_write(fhandle, buffer, bytes_read);
+    int return_value = (int) tfs_write(fhandle, buffer, bytes_read);
     
     int client = open_clients[session_id];
     ret = write(client, &return_value, sizeof(return_value));
@@ -202,18 +221,56 @@ int tfs_read_server(){
         return -1;
 
     char buffer[BLOCK_SIZE];
-    int bytes_read = tfs_read(fhandle, buffer, len);
+    int bytes_read = (int) tfs_read(fhandle, buffer, len);
 
     int client = open_clients[session_id];
     ret = write(client, &bytes_read, sizeof(bytes_read));
     if (ret != sizeof(bytes_read))
         return -1;
     
-    ret = write(client, buffer, bytes_read);
+    ret = write(client, buffer, (size_t) bytes_read);
     if (ret != bytes_read)
         return -1;
 
+    return 0;    
+}
 
-    return 0;
+int tfs_shutdown_after_all_closed_server(){
+    int session_id;
+    ssize_t ret = read(server, &session_id, sizeof(session_id));
+    if (ret != sizeof(session_id))
+        return -1;
+
+    if (tfs_destroy_after_all_closed() != 0)
+        return -1;
     
+    return 0;
+}
+
+int escravo(request request){
+
+    char op_code = request.op_code;
+    int i;
+    switch (op_code) {
+        case (char) TFS_OP_CODE_MOUNT: i = tfs_mount_server();
+            break;
+        case (char) TFS_OP_CODE_UNMOUNT: i = tfs_unmount_server();
+            break;
+        case (char) TFS_OP_CODE_OPEN: i = open_escravo();
+            break;
+        case (char) TFS_OP_CODE_CLOSE: i = tfs_close_server();
+            break;
+        case (char) TFS_OP_CODE_WRITE: i = tfs_write_server();
+            break;
+        case (char) TFS_OP_CODE_READ: i = tfs_read_server();
+            break;
+        case (char) TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED: i = tfs_shutdown_after_all_closed_server();
+            break;
+    }
+
+pthread_create(..., escravo);
+}
+int open_escravo(request request){
+    int flags = request.flags;
+    tfs_open(..., flags);
 }

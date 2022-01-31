@@ -42,14 +42,15 @@ static bool valid_pathname(char const *name) {
 
 int tfs_destroy_after_all_closed() {
 
-	pthread_mutex_lock(&single_global_lock);
+	if (pthread_mutex_lock(&single_global_lock) != 0)
+		return -1;
 	while (open_files > 0)
-		pthread_cond_wait(&single_global_cond, &single_global_lock);
-	pthread_mutex_unlock(&single_global_lock);
+		if (pthread_cond_wait(&single_global_cond, &single_global_lock) != 0)
+			return -1;
+	if (pthread_mutex_unlock(&single_global_lock) != 0)
+		return -1;
 
-	tfs_destroy();
-
-	return 0;
+	return tfs_destroy();
 }
 
 int _tfs_lookup_unsynchronized(char const *name) {

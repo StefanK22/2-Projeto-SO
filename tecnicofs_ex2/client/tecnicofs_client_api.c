@@ -169,8 +169,8 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     if (ret != sizeof(bytes_read))
         return -1;
     
-    ret = read(client, buffer, len);
-    if (ret != len)
+    ret = read(client, buffer, (size_t) bytes_read);
+    if (ret != bytes_read)
         return -1;
 
     return bytes_read;
@@ -179,6 +179,19 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 }
 
 int tfs_shutdown_after_all_closed() {
-    /* TODO: Implement this */
-    return -1;
+    char op = (char) TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED;
+    ssize_t ret = write(server, &op, sizeof(op));
+    if (ret != sizeof(op))
+        return -1;
+    
+    ret = write(server, &session, sizeof(session));
+    if (ret != sizeof(session))
+        return -1;
+
+    int return_value;
+    ret = read(client, &return_value, sizeof(return_value));
+    if (ret == -1 || return_value == -1)
+        return -1;
+    
+    return 0;
 }
