@@ -135,10 +135,10 @@ int tfs_open_server(){
     if (ret != sizeof(flags))
         return -1;
 
-    request request = requests_buffer[session_id];
+    /*request request = requests_buffer[session_id];
     request.op_code = TFS_OP_CODE_OPEN;
     memcpy(request.name, name, sizeof(name));
-    request.flags = flags;
+    request.flags = flags;*/
 
     int fhandle = tfs_open(name, flags);
 
@@ -191,7 +191,7 @@ int tfs_write_server(){
 
     char buffer[BLOCK_SIZE];
     size_t bytes_read = (size_t) read(server, buffer, sizeof(buffer));
-	if (bytes_read < 0)
+	if (bytes_read == -1)
 		return -1;
 
     int return_value = (int) tfs_write(fhandle, buffer, bytes_read);
@@ -246,7 +246,7 @@ int tfs_shutdown_after_all_closed_server(){
     
     return 0;
 }
-
+/*
 int escravo(request request){
 
     char op_code = request.op_code;
@@ -268,9 +268,10 @@ int escravo(request request){
             break;
     }
 
-pthread_create(..., escravo);
+//pthread_create(..., escravo);
 }
+
 int open_escravo(request request){
     int flags = request.flags;
     tfs_open(..., flags);
-}
+}*/
