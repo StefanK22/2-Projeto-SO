@@ -9,9 +9,6 @@ request req;
 
 int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
 
-    pthread_cond_init(&req.prod, NULL);
-    pthread_cond_init(&req.cons, NULL);
-    pthread_mutex_init(&req.mutex, NULL);
     req.requested = 0;
     client_pipe_name = client_pipe_path;
     server = open(server_pipe_path, O_WRONLY);
@@ -50,8 +47,8 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
     if (ret != sizeof(req.session_id))
         return -1;
 
-    printf("entrou com o session id: %d\n", req.session_id);
-    
+    if (req.session_id == -1)
+        return -1;
     return 0;
 }
 
@@ -67,8 +64,6 @@ int tfs_unmount() {
 
     if (unlink(client_pipe_name) != 0 && errno != ENOENT)
         return -1;
-
-    printf("Saiu com session_id %d\n", req.session_id);
 
     return 0;
 }
@@ -119,7 +114,7 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
     req.op_code = (char) TFS_OP_CODE_WRITE;
     req.fhandle = fhandle;
     req.len = len;    
-    memcpy(req.buffer, buffer, sizeof(*buffer));
+    memcpy(req.buffer, buffer, strlen(buffer));
 
     ssize_t ret = write(server, &req, sizeof(req));
     if (ret != sizeof(req))
@@ -127,7 +122,7 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
     
     int return_value;
     ret = read(client, &return_value, sizeof(return_value));
-    if (ret == -1 || return_value != len)
+    if (ret == -1)
         return -1;
 
     return return_value;
