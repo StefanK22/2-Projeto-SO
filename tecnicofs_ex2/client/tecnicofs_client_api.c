@@ -50,8 +50,10 @@ int tfs_unmount() {
     if (ret != sizeof(req))
         return -1;
 
-    close(server);
-    close(client);
+    if (close(server) != 0)
+        exit(EXIT_FAILURE);
+    if (close(client) != 0)
+        exit(EXIT_FAILURE);
 
     if (unlink(client_pipe_name) != 0 && errno != ENOENT)
         return -1;

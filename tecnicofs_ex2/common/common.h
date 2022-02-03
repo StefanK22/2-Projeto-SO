@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <pthread.h>
 #define BLOCK_SIZE (1024)
+#define NAME_SIZE (40)
+#define MAX_SESSIONS (10)
 
 /* tfs_open flags */
 enum {
@@ -27,7 +29,7 @@ typedef struct {
     char op_code;
     int session_id, flags, fhandle;
     size_t len;
-    char name[40];
+    char name[NAME_SIZE];
     char buffer[BLOCK_SIZE];
     pthread_cond_t cons;
     pthread_cond_t prod;
