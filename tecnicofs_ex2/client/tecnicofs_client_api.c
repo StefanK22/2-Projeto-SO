@@ -21,17 +21,6 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
     if (mkfifo(client_pipe_path, 0777) < 0)
         return -1;
 
-    /*
-    char op = (char) TFS_OP_CODE_MOUNT;
-    ssize_t ret = write(server, &op, sizeof(op));
-    if (ret != sizeof(op))
-        return -1;
-
-    ret = write(server, client_pipe_path, sizeof(client_pipe_path));
-    if (ret != sizeof(client_pipe_path))
-        return -1;
-    */
-
     req.op_code = (char) TFS_OP_CODE_MOUNT;
     req.session_id = -1;
     memcpy(req.name, client_pipe_path, strlen(client_pipe_path));
@@ -49,6 +38,8 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
 
     if (req.session_id == -1)
         return -1;
+
+    printf("Entrou com session id %d\n", req.session_id);
     return 0;
 }
 
@@ -65,6 +56,7 @@ int tfs_unmount() {
     if (unlink(client_pipe_name) != 0 && errno != ENOENT)
         return -1;
 
+    printf("saiu com session id %d\n", req.session_id);
     return 0;
 }
 
@@ -162,6 +154,5 @@ int tfs_shutdown_after_all_closed() {
     ret = read(client, &return_value, sizeof(return_value));
     if (ret == -1 || return_value == -1)
         return -1;
-    
     return 0;
 }
