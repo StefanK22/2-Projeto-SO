@@ -1,17 +1,13 @@
 #include "tecnicofs_client_api.h"
 #include <pthread.h>
 int server;
-char const *client_pipe_name;
+char client_pipe_name[NAME_SIZE];
 int client;
 int session_id;
 
-//request req;
-
-
 int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
 
-    
-    client_pipe_name = client_pipe_path;
+    memcpy(client_pipe_name, client_pipe_path, NAME_SIZE);
     server = open(server_pipe_path, O_WRONLY);
     if (server == -1)
         return -1;
@@ -23,8 +19,8 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
         return -1;
 
     request req;
-    req.op_code = (char) TFS_OP_CODE_MOUNT;
     req.session_id = -1;
+    req.op_code = TFS_OP_CODE_MOUNT;
     memcpy(req.name, client_pipe_path, strlen(client_pipe_path));
     ssize_t ret = write(server, &req, sizeof(req));
     if (ret != sizeof(req))
@@ -38,8 +34,10 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
     if (ret != sizeof(session_id))
         return -1;
 
-    if (session_id == -1)
+    if (session_id == -1){
+        unlink(client_pipe_name);
         return -1;
+    }
 
     printf("Entrou com session id %d\n", session_id);
     return 0;

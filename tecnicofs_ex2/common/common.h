@@ -5,7 +5,6 @@
 #include <pthread.h>
 #define BLOCK_SIZE (1024)
 #define NAME_SIZE (40)
-#define MAX_SESSIONS (10)
 
 /* tfs_open flags */
 enum {
@@ -31,8 +30,8 @@ typedef struct {
     size_t len;
     char name[NAME_SIZE];
     char buffer[BLOCK_SIZE];
-    pthread_cond_t cons;
-    pthread_cond_t prod;
+    pthread_cond_t cons; /* Condition variable to "consume" the request. */
+    pthread_cond_t prod; /* Condition variable to "produce" the request. */
     pthread_mutex_t mutex;
     int requested;
 } request;

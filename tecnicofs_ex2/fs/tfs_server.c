@@ -1,23 +1,12 @@
-#include "operations.h"
+#include "tfs_server.h"
 
-int sessions = 0;
-int open_clients[MAX_SESSIONS];
-int server;
-char* server_pipe_name;
+int sessions = 0; /* Number of clients on the server. */
+int open_clients[MAX_SESSIONS]; /* Array of file descriptors of each client. */
+int server; /* File descriptor of the server's pipe. */
+char* server_pipe_name; /* Server's pipe name. */
 
-
-void receive_requests();
-int tfs_mount_server();
-int tfs_unmount_server();
-int tfs_open_server();
-int tfs_close_server();
-int tfs_write_server();
-int tfs_read_server();
-int tfs_shutdown_after_all_closed_server();
-void* working_thread();
-
-request requests_buffer[MAX_SESSIONS];
-pthread_t thread[MAX_SESSIONS];
+request requests_buffer[MAX_SESSIONS]; /* Producer-Consumer buffer. */
+pthread_t thread[MAX_SESSIONS]; /* Array of all working threads. */ 
 
 int main(int argc, char **argv) {
 
@@ -49,23 +38,24 @@ int main(int argc, char **argv) {
         open_clients[i] = -1;
     }
     
+    /* Inicializes the requests buffer */ 
     for (int i = 0; i < MAX_SESSIONS; i++){
-        if (pthread_cond_init(&requests_buffer[i].prod, NULL) != 0)
-            exit(EXIT_FAILURE);
-    
-        if (pthread_cond_init(&requests_buffer[i].cons, NULL) != 0)
-            exit(EXIT_FAILURE);
         
-        if (pthread_mutex_init(&requests_buffer[i].mutex, NULL) != 0)
-            exit(EXIT_FAILURE);
+        requests_buffer[i].prod = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
+    
+        requests_buffer[i].cons = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
+        
+        requests_buffer[i].mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
         
         requests_buffer[i].session_id = -1;
         requests_buffer[i].requested = 0;
     }
+
     int aux_array[MAX_SESSIONS];
     for (int i = 0; i < MAX_SESSIONS; i++){
         aux_array[i] = i;
     }
+
     for (int i = 0; i < MAX_SESSIONS; i++){
         if (pthread_create(&thread[i], NULL, working_thread, (void*)&aux_array[i]) != 0)
             exit(EXIT_FAILURE);
@@ -73,13 +63,14 @@ int main(int argc, char **argv) {
 
     receive_requests();
 
+    /* All working threads stop working. */
     for (int i = 0; i < MAX_SESSIONS; i++){
         if (pthread_mutex_lock(&requests_buffer[i].mutex) != 0)
             exit(EXIT_FAILURE);
 
         while (requests_buffer[i].requested == 1)
             if (pthread_cond_wait(&requests_buffer[i].prod, &requests_buffer[i].mutex) != 0)
-            exit(EXIT_FAILURE);
+                exit(EXIT_FAILURE);
 
         requests_buffer[i].op_code = -1;
         requests_buffer[i].requested = 1;
@@ -101,12 +92,14 @@ int main(int argc, char **argv) {
     return 0;
 }
 
+
 void receive_requests(){
     while (true) {
         request req;
         ssize_t ret = read(server, &req, sizeof(req));
         if (ret == 0){
-            close(server);
+            if (close(server) != 0)
+                exit(EXIT_FAILURE);
             server = open(server_pipe_name, O_RDONLY);
             if (server == -1)
                 exit(EXIT_FAILURE);
@@ -116,22 +109,23 @@ void receive_requests(){
         int session_id = req.session_id;
 
         if (session_id == -1){
-            //Mount
+            /* tfs_mount */
             char client_pipe_path[NAME_SIZE];
             memcpy(client_pipe_path, req.name, sizeof(req.name));
             int client = open(client_pipe_path, O_WRONLY);
             if (client == -1)
                 return;
             if (sessions < MAX_SESSIONS){
-                ret = write(client, &sessions, sizeof(sessions));
-                if (ret != sizeof(sessions))
-                    return;
-                for (int i = 0; i < MAX_SESSIONS; i++)
+                int i;
+                for (i = 0; i < MAX_SESSIONS; i++)
                     if (open_clients[i] == -1){
                         open_clients[i] = client;
                         sessions++;
                         break;
                     }
+                ret = write(client, &i, sizeof(i));
+                if (ret != sizeof(i))
+                    return;
             }
             else {
                 int return_value = -1;
@@ -147,6 +141,7 @@ void receive_requests(){
                 if (pthread_cond_wait(&requests_buffer[session_id].prod, &requests_buffer[session_id].mutex) != 0)
                     exit(EXIT_FAILURE);
 
+            /* "Produces" a new request. */ 
             requests_buffer[session_id].op_code = req.op_code;
             requests_buffer[session_id].flags = req.flags;
             requests_buffer[session_id].session_id = req.session_id;
@@ -161,6 +156,10 @@ void receive_requests(){
             if (pthread_mutex_unlock(&requests_buffer[session_id].mutex) != 0)
                 exit(EXIT_FAILURE);
 
+            /* 
+             * If the client wants to shut down the server, it waits until the request 
+             * is fulfilled, then stops receiving requests from other clients.
+             */
             if (req.op_code == (char) TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED){
                 if (pthread_mutex_lock(&requests_buffer[session_id].mutex) != 0)
                     exit(EXIT_FAILURE);
@@ -176,10 +175,9 @@ void receive_requests(){
     }
 }
 
-
 void* working_thread(void* arg){
-    int session_id = *((int*) arg);
 
+    int session_id = *((int*) arg);
     while (true){
         if (pthread_mutex_lock(&requests_buffer[session_id].mutex) != 0)
             exit(EXIT_FAILURE);
@@ -188,38 +186,36 @@ void* working_thread(void* arg){
                 exit(EXIT_FAILURE);
         request req = requests_buffer[session_id];
         char op_code = req.op_code;
-        int i = 0;
         switch (op_code) {
-            case (char) TFS_OP_CODE_UNMOUNT: i = tfs_unmount_server(req);
+            case (char) TFS_OP_CODE_UNMOUNT: tfs_unmount_server(req);
                 break;
-            case (char) TFS_OP_CODE_OPEN: i = tfs_open_server(req);
+            case (char) TFS_OP_CODE_OPEN: tfs_open_server(req);
                 break;
-            case (char) TFS_OP_CODE_CLOSE: i = tfs_close_server(req);
+            case (char) TFS_OP_CODE_CLOSE: tfs_close_server(req);
                 break;
-            case (char) TFS_OP_CODE_WRITE: i = tfs_write_server(req);
+            case (char) TFS_OP_CODE_WRITE: tfs_write_server(req);
                 break;
-            case (char) TFS_OP_CODE_READ: i = tfs_read_server(req);
+            case (char) TFS_OP_CODE_READ: tfs_read_server(req);
                 break;
-            case (char) TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED: i = tfs_shutdown_after_all_closed_server(req);
+            case (char) TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED: tfs_shutdown_after_all_closed_server(req);
                 break;
             case (char) -1: {
                     if (pthread_mutex_unlock(&requests_buffer[session_id].mutex) != 0)
                         exit(EXIT_FAILURE);
                     return NULL;
                 }
-            default: return NULL;
-        }
-        if (i == -1){
-            if (pthread_mutex_unlock(&requests_buffer[session_id].mutex) != 0)
-                exit(EXIT_FAILURE);
-            break;
+            default: {
+                if (pthread_mutex_unlock(&requests_buffer[session_id].mutex) != 0)
+                        exit(EXIT_FAILURE);
+                return NULL;
+            }
         }
     }
     
     return NULL;
 }
 
-int tfs_open_server(request req){
+void tfs_open_server(request req){
 
     int session_id = req.session_id;
     char name[NAME_SIZE];
@@ -239,11 +235,10 @@ int tfs_open_server(request req){
         exit(EXIT_FAILURE);
     if (pthread_mutex_unlock(&requests_buffer[session_id].mutex) != 0)
         exit(EXIT_FAILURE);
-    return 0;
 }
 
 
-int tfs_close_server(request req){
+void tfs_close_server(request req){
 
     int session_id = req.session_id;
     int fhandle = req.fhandle;
@@ -261,10 +256,9 @@ int tfs_close_server(request req){
     if (pthread_mutex_unlock(&requests_buffer[session_id].mutex) != 0)
         exit(EXIT_FAILURE);
 
-    return 0;
 }
 
-int tfs_write_server(request req){
+void tfs_write_server(request req){
 
     int session_id = req.session_id;
     int fhandle = req.fhandle;
@@ -284,11 +278,10 @@ int tfs_write_server(request req){
         exit(EXIT_FAILURE);
     if (pthread_mutex_unlock(&requests_buffer[session_id].mutex) != 0)
         exit(EXIT_FAILURE);
-    return 0;
 
 }
 
-int tfs_read_server(request req){
+void tfs_read_server(request req){
     int session_id = req.session_id;
     int fhandle = req.fhandle;
     size_t len = req.len;
@@ -311,10 +304,9 @@ int tfs_read_server(request req){
     if (pthread_mutex_unlock(&requests_buffer[session_id].mutex) != 0)
         exit(EXIT_FAILURE);
 
-    return 0;
 }
 
-int tfs_shutdown_after_all_closed_server(request req){
+void tfs_shutdown_after_all_closed_server(request req){
     int session_id = req.session_id;
 
     int return_value = tfs_destroy_after_all_closed();
@@ -330,12 +322,12 @@ int tfs_shutdown_after_all_closed_server(request req){
     if (pthread_mutex_unlock(&requests_buffer[session_id].mutex) != 0)
         exit(EXIT_FAILURE);
 
-    return 0;
 }
 
-int tfs_unmount_server(request req){
+void tfs_unmount_server(request req){
     int session_id = req.session_id;
-    close(open_clients[session_id]);
+    if (close(open_clients[session_id]) != 0)
+        exit(EXIT_FAILURE);
     sessions--;
     open_clients[session_id] = -1;
     requests_buffer[session_id].session_id = -1;
@@ -345,5 +337,4 @@ int tfs_unmount_server(request req){
     if (pthread_mutex_unlock(&requests_buffer[session_id].mutex) != 0)
         exit(EXIT_FAILURE);
 
-    return 0;
 }
