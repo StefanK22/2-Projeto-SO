@@ -3,13 +3,14 @@
 int server;
 char const *client_pipe_name;
 int client;
+int session_id;
 
-request req;
+//request req;
 
 
 int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
 
-    req.requested = 0;
+    
     client_pipe_name = client_pipe_path;
     server = open(server_pipe_path, O_WRONLY);
     if (server == -1)
@@ -21,6 +22,7 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
     if (mkfifo(client_pipe_path, 0777) < 0)
         return -1;
 
+    request req;
     req.op_code = (char) TFS_OP_CODE_MOUNT;
     req.session_id = -1;
     memcpy(req.name, client_pipe_path, strlen(client_pipe_path));
@@ -32,19 +34,21 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
     if (client == -1)
         return -1;
 
-    ret = read(client, &req.session_id, sizeof(req.session_id));
-    if (ret != sizeof(req.session_id))
+    ret = read(client, &session_id, sizeof(session_id));
+    if (ret != sizeof(session_id))
         return -1;
 
-    if (req.session_id == -1)
+    if (session_id == -1)
         return -1;
 
-    printf("Entrou com session id %d\n", req.session_id);
+    printf("Entrou com session id %d\n", session_id);
     return 0;
 }
 
 int tfs_unmount() {
 
+    request req;
+    req.session_id = session_id;
     req.op_code = (char) TFS_OP_CODE_UNMOUNT;
     ssize_t ret = write(server, &req, sizeof(req));
     if (ret != sizeof(req))
@@ -58,12 +62,14 @@ int tfs_unmount() {
     if (unlink(client_pipe_name) != 0 && errno != ENOENT)
         return -1;
 
-    printf("saiu com session id %d\n", req.session_id);
+    printf("saiu com session id %d\n", session_id);
     return 0;
 }
 
 int tfs_open(char const *name, int flags) {
-
+    
+    request req;
+    req.session_id = session_id;
     req.op_code = (char) TFS_OP_CODE_OPEN;
     
     char path_name[40];
@@ -88,6 +94,8 @@ int tfs_open(char const *name, int flags) {
 
 int tfs_close(int fhandle) {
     
+    request req;
+    req.session_id = session_id;
     req.op_code = (char) TFS_OP_CODE_CLOSE;
     req.fhandle = fhandle;
 
@@ -105,6 +113,8 @@ int tfs_close(int fhandle) {
 
 ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
 
+    request req;
+    req.session_id = session_id;
     req.op_code = (char) TFS_OP_CODE_WRITE;
     req.fhandle = fhandle;
     req.len = len;    
@@ -123,6 +133,9 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
 }
 
 ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
+
+    request req;
+    req.session_id = session_id;
     req.op_code = (char) TFS_OP_CODE_READ;
     req.fhandle = fhandle;
     req.len = len;
@@ -146,6 +159,9 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 }
 
 int tfs_shutdown_after_all_closed() {
+
+    request req;
+    req.session_id = session_id;
     req.op_code = (char) TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED;
 
     ssize_t ret = write(server, &req, sizeof(req));

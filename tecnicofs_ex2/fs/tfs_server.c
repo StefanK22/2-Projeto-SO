@@ -294,7 +294,6 @@ int tfs_read_server(request req){
     size_t len = req.len;
 
     char buffer[BLOCK_SIZE];
-    memcpy(buffer, req.buffer, sizeof(req.buffer));
     int bytes_read = (int) tfs_read(fhandle, buffer, len);
 
     int client = open_clients[session_id];
