@@ -15,17 +15,18 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
     if (unlink(client_pipe_path) != 0 && errno != ENOENT)
         return -1;
 
-    if (mkfifo(client_pipe_path, 0777) < 0)
+    if (mkfifo(client_pipe_path, 0640) < 0)
         return -1;
 
     request req;
     req.session_id = -1;
     req.op_code = TFS_OP_CODE_MOUNT;
     memcpy(req.name, client_pipe_path, strlen(client_pipe_path));
+    req.name[strlen(client_pipe_path)] = '\0';
     ssize_t ret = write(server, &req, sizeof(req));
     if (ret != sizeof(req))
         return -1;
-    
+
     client = open(client_pipe_path, O_RDONLY);
     if (client == -1)
         return -1;
@@ -117,7 +118,7 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
     req.fhandle = fhandle;
     req.len = len;    
     memcpy(req.buffer, buffer, strlen(buffer));
-
+    
     ssize_t ret = write(server, &req, sizeof(req));
     if (ret != sizeof(req))
         return -1;

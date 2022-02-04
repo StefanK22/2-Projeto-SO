@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
     if (unlink(server_pipe_path) != 0 && errno != ENOENT)
         exit(EXIT_FAILURE);
     
-    if (mkfifo(server_pipe_path, 0777) < 0)
+    if (mkfifo(server_pipe_path, 0640) < 0)
         exit(EXIT_FAILURE);
     
     server = open(server_pipe_path, O_RDONLY);
