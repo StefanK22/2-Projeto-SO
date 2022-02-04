@@ -229,6 +229,7 @@ int tfs_open_server(request req){
     int fhandle = tfs_open(name, flags);
 
     int client = open_clients[session_id];
+
     ssize_t ret = write(client, &fhandle, sizeof(fhandle));
     if (ret != sizeof(fhandle))
         tfs_unmount_server(req);
