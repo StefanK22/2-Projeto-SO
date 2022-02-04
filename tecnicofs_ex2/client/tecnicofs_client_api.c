@@ -40,7 +40,6 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
         return -1;
     }
 
-    printf("Entrou com session id %d\n", session_id);
     return 0;
 }
 
@@ -61,7 +60,6 @@ int tfs_unmount() {
     if (unlink(client_pipe_name) != 0 && errno != ENOENT)
         return -1;
 
-    printf("saiu com session id %d\n", session_id);
     return 0;
 }
 
